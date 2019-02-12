@@ -16,24 +16,24 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/gofunct/cloud/inject"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"log"
 	"os"
-	"github.com/fatih/color"
 	"time"
 )
 
 var (
 	cfgFile string
-	config = &inject.Config{}
+	config  = &inject.Config{}
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "cloudctl",
+	Use: "cloudctl",
 	Long: color.BlueString(`Cloudctl is a fast and flexible cloud development utility for multiple platforms
 
 Author: Coleman Word
@@ -66,8 +66,8 @@ func init() {
 		rootCmd.PersistentFlags().StringVar(&config.DbUser, "dbuser", "", "database user name")
 		rootCmd.PersistentFlags().StringVar(&config.DbPass, "dbpass", "", "database password")
 		rootCmd.PersistentFlags().StringVar(&config.Bucket, "bucket", "", "blob storage bucket")
-		rootCmd.PersistentFlags().StringVar(&config.Env, 	"env", "local", "target deployment environment-> |local|gcp|aws|")
-		rootCmd.PersistentFlags().DurationVar(&config.RunVarWait, "runvarwait", 30 *time.Second, "timeout for runtime config watcher")
+		rootCmd.PersistentFlags().StringVar(&config.Env, "env", "local", "target deployment environment-> |local|gcp|aws|")
+		rootCmd.PersistentFlags().DurationVar(&config.RunVarWait, "runvarwait", 30*time.Second, "timeout for runtime config watcher")
 		rootCmd.PersistentFlags().StringVar(&config.RunVar, "runvar", "", "runtime variable value")
 		rootCmd.PersistentFlags().StringVar(&config.RunVarName, "runvarname", "", "runtime variable name")
 	}
@@ -114,10 +114,5 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
-	if err := viper.Unmarshal(config); err == nil {
-		fmt.Println("Successfully unmarshaled config")
-	} else {
-		fmt.Println("Failed to unmarshal config")
 	}
 }

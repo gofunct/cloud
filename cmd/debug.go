@@ -23,7 +23,6 @@ import (
 var debugCmd = &cobra.Command{
 	Use:   "debug",
 	Short: "Common debugging operations |flags|config|",
-
 }
 
 // debugCmd represents the debug command
@@ -31,17 +30,17 @@ var debugCfgCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Debug current local config settings",
 	Run: func(cmd *cobra.Command, args []string) {
-	viper.Debug()
+		viper.Debug()
 	},
-
 }
+
 // debugCmd represents the debug command
 var debugFlagsCmd = &cobra.Command{
-	Use:   "flags",
+	Use: "flags",
 	Long: `Debug current flag settings
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.DebugFlags()
+		rootCmd.DebugFlags()
 	},
 }
 

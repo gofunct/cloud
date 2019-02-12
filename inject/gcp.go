@@ -3,17 +3,17 @@
 package inject
 
 import (
-"context"
+	"context"
 
-"github.com/google/wire"
-"gocloud.dev/blob"
-"gocloud.dev/blob/gcsblob"
-"gocloud.dev/gcp"
-"gocloud.dev/gcp/gcpcloud"
-"gocloud.dev/mysql/cloudmysql"
-"gocloud.dev/runtimevar"
-"gocloud.dev/runtimevar/runtimeconfigurator"
-pb "google.golang.org/genproto/googleapis/cloud/runtimeconfig/v1beta1"
+	"github.com/google/wire"
+	"gocloud.dev/blob"
+	"gocloud.dev/blob/gcsblob"
+	"gocloud.dev/gcp"
+	"gocloud.dev/gcp/gcpcloud"
+	"gocloud.dev/mysql/cloudmysql"
+	"gocloud.dev/runtimevar"
+	"gocloud.dev/runtimevar/runtimeconfigurator"
+	pb "google.golang.org/genproto/googleapis/cloud/runtimeconfig/v1beta1"
 )
 
 // This file wires the generic interfaces up to Google Cloud Platform (GCP). It

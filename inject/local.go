@@ -3,18 +3,18 @@
 package inject
 
 import (
-"context"
-"database/sql"
+	"context"
+	"database/sql"
 
-"github.com/go-sql-driver/mysql"
-"github.com/google/wire"
-"go.opencensus.io/trace"
-"gocloud.dev/blob"
-"gocloud.dev/blob/fileblob"
-"gocloud.dev/requestlog"
-"gocloud.dev/runtimevar"
-"gocloud.dev/runtimevar/filevar"
-"gocloud.dev/server"
+	"github.com/go-sql-driver/mysql"
+	"github.com/google/wire"
+	"go.opencensus.io/trace"
+	"gocloud.dev/blob"
+	"gocloud.dev/blob/fileblob"
+	"gocloud.dev/requestlog"
+	"gocloud.dev/runtimevar"
+	"gocloud.dev/runtimevar/filevar"
+	"gocloud.dev/server"
 )
 
 // This file wires the generic interfaces up to local implementations. It won't
