@@ -22,7 +22,7 @@ pb "google.golang.org/genproto/googleapis/cloud/runtimeconfig/v1beta1"
 // into wire_gen.go when Wire is run.
 
 // setupGCP is a Wire injector function that sets up the Application using GCP.
-func setupGCP(ctx context.Context, flags *Config) (*Application, func(), error) {
+func SetupGCP(ctx context.Context, flags *Config) (*Application, func(), error) {
 	// This will be filled in by Wire with providers from the provider sets in
 	// wire.Build.
 	wire.Build(
@@ -48,11 +48,11 @@ func GcpBucket(ctx context.Context, flags *Config, client *gcp.HTTPClient) (*blo
 func GcpSQLParams(id gcp.ProjectID, flags *Config) *cloudmysql.Params {
 	return &cloudmysql.Params{
 		ProjectID: string(id),
-		Region:    flags.CloudSQLRegion,
+		Region:    flags.SQLRegion,
 		Instance:  flags.DbHost,
 		Database:  flags.DbName,
 		User:      flags.DbUser,
-		Password:  flags.DbPassword,
+		Password:  flags.DbPass,
 	}
 }
 
@@ -61,11 +61,11 @@ func GcpSQLParams(id gcp.ProjectID, flags *Config) *cloudmysql.Params {
 func GcpMOTDVar(ctx context.Context, client pb.RuntimeConfigManagerClient, project gcp.ProjectID, flags *Config) (*runtimevar.Variable, func(), error) {
 	name := runtimeconfigurator.ResourceName{
 		ProjectID: string(project),
-		Config:    flags.RuntimeConfigName,
+		Config:    flags.RunVarName,
 		Variable:  flags.RunVar,
 	}
 	v, err := runtimeconfigurator.NewVariable(client, name, runtimevar.StringDecoder, &runtimeconfigurator.Options{
-		WaitDuration: flags.RunVarWaitTime,
+		WaitDuration: flags.RunVarWait,
 	})
 	if err != nil {
 		return nil, nil, err

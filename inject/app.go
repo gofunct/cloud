@@ -4,7 +4,11 @@ import (
 	"database/sql"
 	"github.com/google/wire"
 	"go.opencensus.io/trace"
+	"io"
 	"log"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"gocloud.dev/blob"
@@ -13,20 +17,21 @@ import (
 	"gocloud.dev/runtimevar"
 	"gocloud.dev/server"
 	"context"
+	"github.com/gorilla/mux"
 )
 
 type Config struct {
-	Bucket          string
-	DbHost          string
-	DbName          string
-	DbUser          string
-	DbPassword      string
-	RunVar         string
-	RunVarWaitTime time.Duration
+	Env 	string `json:"env"`
+	Bucket          string `json:"bucket"`
+	DbHost          string `json:"dbhost"`
+	DbName          string `json:"dbname"`
+	DbUser          string	`json:"dbuser"`
+	DbPass     string	`json:"dbpass"`
+	SQLRegion    	string	`json:"sqlregion"`
+	RunVar         	string 	`json:"runvar"`
+	RunVarWait 		time.Duration `json:"runvarwait"`
+	RunVarName 		string `json:"runvarname"`
 
-	CloudSQLRegion    string
-	RuntimeConfigName string
-	EnvFlag string
 }
 
 // ApplicationSet is the Wire provider set for the Guestbook Application that
@@ -40,26 +45,25 @@ var ApplicationSet = wire.NewSet(
 // Application is the main server struct for Guestbook. It contains the state of
 // the most recently read message of the day.
 type Application struct {
-	srv    *server.Server
-	db     *sql.DB
-	bucket *blob.Bucket
-
+	Server    *server.Server
+	Db     *sql.DB
+	Bucket *blob.Bucket
 	// The following fields are protected by mu:
-	mu   sync.RWMutex
-	motd string // message of the day
+	Mutex   sync.RWMutex
+	Runvar string
 }
 // of the day variable.
-func NewApplication(srv *server.Server, db *sql.DB, bucket *blob.Bucket, motdVar *runtimevar.Variable) *Application {
+func NewApplication(srv *server.Server, db *sql.DB, bucket *blob.Bucket, runvar *runtimevar.Variable) *Application {
 	app := &Application{
-		srv:    srv,
-		db:     db,
-		bucket: bucket,
+		Server:    srv,
+		Db:     db,
+		Bucket: bucket,
 	}
-	go app.WatchRunVar(motdVar)
+	go app.WatchRunVar(runvar)
 	return app
 }
 
-// watchMOTDVar listens for changes in v and updates the app's message of the
+// WatchRunVar listens for changes in v and updates the app's message of the
 // day. It is run in a separate goroutine.
 func (app *Application) WatchRunVar(v *runtimevar.Variable) {
 	ctx := context.Background()
@@ -70,9 +74,9 @@ func (app *Application) WatchRunVar(v *runtimevar.Variable) {
 			continue
 		}
 		log.Println("updated MOTD to", snap.Value)
-		app.mu.Lock()
-		app.motd = snap.Value.(string)
-		app.mu.Unlock()
+		app.Mutex.Lock()
+		app.Runvar = snap.Value.(string)
+		app.Mutex.Unlock()
 	}
 }
 
@@ -84,5 +88,41 @@ func AppHealthChecks(db *sql.DB) ([]health.Checker, func()) {
 	list := []health.Checker{dbCheck}
 	return list, func() {
 		dbCheck.Stop()
+	}
+}
+
+
+// serveBlob handles a request for a static asset by retrieving it from a bucket.
+func (app *Application) ServeBlob(w http.ResponseWriter, r *http.Request) {
+	key := mux.Vars(r)["key"]
+	blobRead, err := app.Bucket.NewReader(r.Context(), key, nil)
+	if err != nil {
+		// TODO: Distinguish 404.
+		log.Println("serve blob:", err)
+		http.Error(w, "blob read error", http.StatusInternalServerError)
+		return
+	}
+	// TODO: Get content type from blob storage.
+	switch {
+	case strings.HasSuffix(key, ".png"):
+		w.Header().Set("Content-Type", "image/png")
+	case strings.HasSuffix(key, ".jpg"):
+		w.Header().Set("Content-Type", "image/jpeg")
+	case strings.HasSuffix(key, ".html"):
+		w.Header().Set("Content-Type", "text/html")
+	case strings.HasSuffix(key, ".mpeg"):
+		w.Header().Set("Content-Type", "video/mpeg")
+	case strings.HasSuffix(key, ".mp4"):
+		w.Header().Set("Content-Type", "video/mp4")
+	case strings.HasSuffix(key, ".csv"):
+		w.Header().Set("Content-Type", "text/csv")
+
+
+	default:
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.Header().Set("Content-Length", strconv.FormatInt(blobRead.Size(), 10))
+	if _, err = io.Copy(w, blobRead); err != nil {
+		log.Println("Copying blob:", err)
 	}
 }

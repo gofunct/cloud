@@ -49,7 +49,7 @@ func AwsSQLParams(flags *Config) *rdsmysql.Params {
 		Endpoint: flags.DbHost,
 		Database: flags.DbName,
 		User:     flags.DbUser,
-		Password: flags.DbPassword,
+		Password: flags.DbPass,
 	}
 }
 
@@ -57,6 +57,6 @@ func AwsSQLParams(flags *Config) *rdsmysql.Params {
 // variable from SSM Parameter Store.
 func AwsMOTDVar(ctx context.Context, sess awsclient.ConfigProvider, flags *Config) (*runtimevar.Variable, error) {
 	return paramstore.NewVariable(sess, flags.RunVar, runtimevar.StringDecoder, &paramstore.Options{
-		WaitDuration: flags.RunVarWaitTime,
+		WaitDuration: flags.RunVarWait,
 	})
 }

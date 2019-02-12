@@ -102,7 +102,7 @@ var (
 
 // Injectors from gcp.go:
 
-func setupGCP(ctx context.Context, flags *Config) (*Application, func(), error) {
+func SetupGCP(ctx context.Context, flags *Config) (*Application, func(), error) {
 	stackdriverLogger := sdserver.NewRequestLogger()
 	roundTripper := gcp.DefaultTransport()
 	credentials, err := gcp.DefaultCredentials(ctx)
@@ -227,7 +227,7 @@ func AwsSQLParams(flags *Config) *rdsmysql.Params {
 		Endpoint: flags.DbHost,
 		Database: flags.DbName,
 		User:     flags.DbUser,
-		Password: flags.DbPassword,
+		Password: flags.DbPass,
 	}
 }
 
@@ -235,7 +235,7 @@ func AwsSQLParams(flags *Config) *rdsmysql.Params {
 // variable from SSM Parameter Store.
 func AwsMOTDVar(ctx context.Context, sess client.ConfigProvider, flags *Config) (*runtimevar.Variable, error) {
 	return paramstore.NewVariable(sess, flags.RunVar, runtimevar.StringDecoder, &paramstore.Options{
-		WaitDuration: flags.RunVarWaitTime,
+		WaitDuration: flags.RunVarWait,
 	})
 }
 
@@ -253,11 +253,11 @@ func GcpBucket(ctx context.Context, flags *Config, client2 *gcp.HTTPClient) (*bl
 func GcpSQLParams(id gcp.ProjectID, flags *Config) *cloudmysql.Params {
 	return &cloudmysql.Params{
 		ProjectID: string(id),
-		Region:    flags.CloudSQLRegion,
+		Region:    flags.SQLRegion,
 		Instance:  flags.DbHost,
 		Database:  flags.DbName,
 		User:      flags.DbUser,
-		Password:  flags.DbPassword,
+		Password:  flags.DbPass,
 	}
 }
 
@@ -266,11 +266,11 @@ func GcpSQLParams(id gcp.ProjectID, flags *Config) *cloudmysql.Params {
 func GcpMOTDVar(ctx context.Context, client2 runtimeconfig.RuntimeConfigManagerClient, project gcp.ProjectID, flags *Config) (*runtimevar.Variable, func(), error) {
 	name := runtimeconfigurator.ResourceName{
 		ProjectID: string(project),
-		Config:    flags.RuntimeConfigName,
+		Config:    flags.RunVarName,
 		Variable:  flags.RunVar,
 	}
 	v, err := runtimeconfigurator.NewVariable(client2, name, runtimevar.StringDecoder, &runtimeconfigurator.Options{
-		WaitDuration: flags.RunVarWaitTime,
+		WaitDuration: flags.RunVarWait,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -294,7 +294,7 @@ func DialLocalSQL(flags *Config) (*sql.DB, error) {
 		Addr:                 flags.DbHost,
 		DBName:               flags.DbName,
 		User:                 flags.DbUser,
-		Passwd:               flags.DbPassword,
+		Passwd:               flags.DbPass,
 		AllowNativePasswords: true,
 	}
 	return sql.Open("mysql", cfg.FormatDSN())
@@ -304,7 +304,7 @@ func DialLocalSQL(flags *Config) (*sql.DB, error) {
 // Day variable based on a local file.
 func LocalRuntimeVar(flags *Config) (*runtimevar.Variable, func(), error) {
 	v, err := filevar.New(flags.RunVar, runtimevar.StringDecoder, &filevar.Options{
-		WaitDuration: flags.RunVarWaitTime,
+		WaitDuration: flags.RunVarWait,
 	})
 	if err != nil {
 		return nil, nil, err

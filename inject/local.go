@@ -53,7 +53,7 @@ func DialLocalSQL(flags *Config) (*sql.DB, error) {
 		Addr:                 flags.DbHost,
 		DBName:               flags.DbName,
 		User:                 flags.DbUser,
-		Passwd:               flags.DbPassword,
+		Passwd:               flags.DbPass,
 		AllowNativePasswords: true,
 	}
 	return sql.Open("mysql", cfg.FormatDSN())
@@ -63,7 +63,7 @@ func DialLocalSQL(flags *Config) (*sql.DB, error) {
 // Day variable based on a local file.
 func LocalRuntimeVar(flags *Config) (*runtimevar.Variable, func(), error) {
 	v, err := filevar.New(flags.RunVar, runtimevar.StringDecoder, &filevar.Options{
-		WaitDuration: flags.RunVarWaitTime,
+		WaitDuration: flags.RunVarWait,
 	})
 	if err != nil {
 		return nil, nil, err
