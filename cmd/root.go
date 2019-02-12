@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/fatih/color"
 	"github.com/gofunct/cloud/inject"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -28,13 +27,13 @@ import (
 var (
 	cfgFile string
 	config  = &inject.Config{}
-	home = os.Getenv("HOME")
+	port    string
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use: "cloudctl",
-	Long: color.BlueString(`Cloudctl is a fast and flexible cloud development utility for multiple platforms
+	Long: `Cloudctl is a fast and flexible cloud development utility for multiple platforms
 
 Author: Coleman Word
 Download: gp get github.com/gofunct/cloud/...
@@ -44,7 +43,7 @@ o888     88  888   ooooooo  oooo  oooo   ooooo888   ooooooo  o888oo  888
 888          888 888     888 888   888 888    888 888     888 888    888 
 888o     oo  888 888     888 888   888 888    888 888         888    888 
  888oooo88  o888o  88ooo88    888o88 8o  88ooo888o  88ooo888   888o o888o
-`),
+`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -60,13 +59,13 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	{
 		rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $PWD/cloudctl.yaml)")
+		rootCmd.PersistentFlags().StringVar(&port, "port", ":8080", "port to run app on")
 		rootCmd.PersistentFlags().StringVar(&config.SQLRegion, "sqlregion", "", "cloud sql region")
 		rootCmd.PersistentFlags().StringVar(&config.DbName, "dbname", "defdb", "database name")
 		rootCmd.PersistentFlags().StringVar(&config.DbHost, "dbhost", "", "database host")
 		rootCmd.PersistentFlags().StringVar(&config.DbUser, "dbuser", "defuser", "database user name")
 		rootCmd.PersistentFlags().StringVar(&config.DbPass, "dbpass", "defpass", "database password")
 		rootCmd.PersistentFlags().StringVar(&config.Bucket, "bucket", "defbucket", "blob storage bucket")
-		rootCmd.PersistentFlags().StringVar(&config.Env, "env", "gcp", "target deployment environment-> |local|gcp|aws|")
 		rootCmd.PersistentFlags().DurationVar(&config.RunVarWait, "runvarwait", 30*time.Second, "timeout for runtime config watcher")
 		rootCmd.PersistentFlags().StringVar(&config.RunVar, "runvar", "hello world", "runtime variable value")
 		rootCmd.PersistentFlags().StringVar(&config.RunVarName, "runvarname", "motd", "runtime variable name")
@@ -98,7 +97,6 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		// Find home directory.
-
 
 		// Search config in home directory with name ".temp" (without extension).
 		viper.AddConfigPath(os.Getenv("PWD"))

@@ -19,7 +19,11 @@ import (
 	"github.com/gofunct/cloud/inject"
 	"github.com/gorilla/mux"
 	"log"
+	"net/http"
+	"net/http/pprof"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 )
 
@@ -32,28 +36,7 @@ var initCmd = &cobra.Command{
 		var app *inject.Application
 		var cleanup func()
 		var err error
-		switch config.Env {
-		case "gcp":
-			if config.DbPass == "" {
-				config.DbPass = "gcpadmin"
-			}
-			app, cleanup, err = inject.SetupGCP(ctx, config)
-		case "aws":
-			if config.DbPass == "" {
-				config.DbPass = "awsadmin"
-			}
-			app, cleanup, err = inject.SetupAWS(ctx, config)
-		case "local":
-			if config.DbHost == "" {
-				config.DbHost = "localhost"
-			}
-			if config.DbPass == "" {
-				config.DbPass = "localadmin"
-			}
-			app, cleanup, err = inject.SetupLocal(ctx, config)
-		default:
-			log.Fatalf("unknown env=%s\n valid: |local|gcp|aws|", config.Env)
-		}
+		app, cleanup, err = inject.SetupGCP(ctx, config)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -64,10 +47,15 @@ var initCmd = &cobra.Command{
 		r.HandleFunc("/", inject.Index(app, config))
 		r.HandleFunc("/sign", inject.Sign(app, config))
 		r.HandleFunc("/blob/{key:.+}", inject.ServeBlob(app, config))
-
+		r.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		r.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		r.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		r.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		r.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+		r.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
 		// Listen and serve HTTP.
-		log.Printf("Running, connected to %q cloud", config.Env)
-		log.Fatal(app.Server.ListenAndServe(":8080", r))
+		log.Println("Running, connected to google cloud platform")
+		log.Fatal(app.Server.ListenAndServe(port, r))
 	},
 }
 

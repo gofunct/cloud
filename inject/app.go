@@ -23,7 +23,6 @@ import (
 )
 
 type Config struct {
-	Env        string        `json:"env"`
 	Bucket     string        `json:"bucket"`
 	DbHost     string        `json:"dbhost"`
 	DbName     string        `json:"dbname"`
@@ -143,17 +142,8 @@ func Index(app *Application, c *Config) http.HandlerFunc {
 		app.Mutex.RLock()
 		data.MOTD = app.Runvar
 		app.Mutex.RUnlock()
-		switch c.Env {
-		case "gcp":
-			data.Env = "GCP"
-			data.BannerSrc = "/blob/gcp.png"
-		case "aws":
-			data.Env = "AWS"
-			data.BannerSrc = "/blob/aws.png"
-		case "local":
-			data.Env = "Local"
-			data.BannerSrc = "/blob/gophers.jpg"
-		}
+		data.Env = "GCP"
+		data.BannerSrc = "/blob/gcp.png"
 
 		const query = "SELECT content FROM (SELECT content, post_date FROM greetings ORDER BY post_date DESC LIMIT 100) AS recent_greetings ORDER BY post_date ASC;"
 		q, err := app.Db.QueryContext(r.Context(), query)
