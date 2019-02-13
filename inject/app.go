@@ -1,37 +1,49 @@
 package inject
 
 import (
-	"bytes"
-	"context"
-	"database/sql"
+	"cloud.google.com/go/firestore"
+	"fmt"
 	"github.com/google/wire"
 	"github.com/gorilla/mux"
 	"go.opencensus.io/trace"
 	"gocloud.dev/blob"
 	"gocloud.dev/health"
-	"gocloud.dev/health/sqlhealth"
-	"gocloud.dev/runtimevar"
 	"gocloud.dev/server"
-	"html/template"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 )
 
+var (
+	// TODO: randomize it
+	oauthStateString = "pseudo-random"
+	googleOauthConfig *oauth2.Config
+)
+
+func init() {
+	googleOauthConfig = &oauth2.Config{
+		RedirectURL:  Configuration.Redirect,
+		ClientID:    Configuration.ClientId,
+		ClientSecret: Configuration.ClientSecret,
+		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email"},
+		Endpoint:     google.Endpoint,
+	}
+}
+
+var Configuration = &Config{}
+
 type Config struct {
+	Redirect string 		`json:"redirect"`
+	ClientId string 		`json:"clientid"`
+	ClientSecret string 	`json:"clientsecret"`
+	Project   string 		 `json:"project"`
 	Bucket     string        `json:"bucket"`
-	DbHost     string        `json:"dbhost"`
-	DbName     string        `json:"dbname"`
-	DbUser     string        `json:"dbuser"`
-	DbPass     string        `json:"dbpass"`
-	SQLRegion  string        `json:"sqlregion"`
-	RunVar     string        `json:"runvar"`
-	RunVarWait time.Duration `json:"runvarwait"`
-	RunVarName string        `json:"runvarname"`
+	Endpoint oauth2.Endpoint
 }
 
 // ApplicationSet is the Wire provider set for the Guestbook Application that
@@ -46,49 +58,27 @@ var ApplicationSet = wire.NewSet(
 // the most recently read message of the day.
 type Application struct {
 	Server *server.Server
-	Db     *sql.DB
+	Fire 	*firestore.Client
 	Bucket *blob.Bucket
-	// The following fields are protected by mu:
-	Mutex  sync.RWMutex
-	Runvar string
+
 }
 
 // of the day variable.
-func NewApplication(srv *server.Server, db *sql.DB, bucket *blob.Bucket, runvar *runtimevar.Variable) *Application {
+func NewApplication(srv *server.Server, bucket *blob.Bucket, fire *firestore.Client) *Application {
 	app := &Application{
 		Server: srv,
-		Db:     db,
+		Fire:     fire,
 		Bucket: bucket,
 	}
-	go app.WatchRunVar(runvar)
 	return app
-}
-
-// WatchRunVar listens for changes in v and updates the app's message of the
-// day. It is run in a separate goroutine.
-func (app *Application) WatchRunVar(v *runtimevar.Variable) {
-	ctx := context.Background()
-	for {
-		snap, err := v.Watch(ctx)
-		if err != nil {
-			log.Printf("watch MOTD variable: %v", err)
-			continue
-		}
-		log.Println("updated MOTD to", snap.Value)
-		app.Mutex.Lock()
-		app.Runvar = snap.Value.(string)
-		app.Mutex.Unlock()
-	}
 }
 
 // appHealthChecks returns a health check for the database. This will signal
 // to Kubernetes or other orchestrators that the server should not receive
 // traffic until the server is able to connect to its database.
-func AppHealthChecks(db *sql.DB) ([]health.Checker, func()) {
-	dbCheck := sqlhealth.New(db)
-	list := []health.Checker{dbCheck}
+func AppHealthChecks() ([]health.Checker, func()) {
+	list := []health.Checker{nil}
 	return list, func() {
-		dbCheck.Stop()
 	}
 }
 
@@ -128,119 +118,48 @@ func ServeBlob(app *Application, c *Config) http.HandlerFunc {
 	}
 }
 
-// index serves the server's landing page. It lists the 100 most recent
-// greetings, shows a cloud environment banner, and displays the message of the
-// day.
-func Index(app *Application, c *Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var data struct {
-			MOTD      string
-			Env       string
-			BannerSrc string
-			Greetings []greeting
-		}
-		app.Mutex.RLock()
-		data.MOTD = app.Runvar
-		app.Mutex.RUnlock()
-		data.Env = "GCP"
-		data.BannerSrc = "/blob/gcp.png"
 
-		const query = "SELECT content FROM (SELECT content, post_date FROM greetings ORDER BY post_date DESC LIMIT 100) AS recent_greetings ORDER BY post_date ASC;"
-		q, err := app.Db.QueryContext(r.Context(), query)
-		if err != nil {
-			log.Println("main page SQL error:", err)
-			http.Error(w, "could not load greetings", http.StatusInternalServerError)
-			return
-		}
-		defer q.Close()
-		for q.Next() {
-			var g greeting
-			if err := q.Scan(&g.Content); err != nil {
-				log.Println("main page SQL error:", err)
-				http.Error(w, "could not load greetings", http.StatusInternalServerError)
-				return
-			}
-			data.Greetings = append(data.Greetings, g)
-		}
-		if err := q.Err(); err != nil {
-			log.Println("main page SQL error:", err)
-			http.Error(w, "could not load greetings", http.StatusInternalServerError)
-			return
-		}
-		buf := new(bytes.Buffer)
-		if err := tmpl.Execute(buf, data); err != nil {
-			log.Println("template error:", err)
-			http.Error(w, "could not render page", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
-		if _, err := w.Write(buf.Bytes()); err != nil {
-			log.Println("writing response:", err)
-		}
+func (app *Application) Index(w http.ResponseWriter, r *http.Request) {
+	var htmlIndex = `<html>
+<body>
+	<a href="/login">Google Log In</a>
+</body>
+</html>`
+	fmt.Fprintf(w, htmlIndex)
+}
+
+
+func (app *Application) Login(w http.ResponseWriter, r *http.Request) {
+	url := googleOauthConfig.AuthCodeURL(oauthStateString)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (app *Application) CallBack(w http.ResponseWriter, r *http.Request) {
+	content, err := app.getUserInfo(r.FormValue("state"), r.FormValue("code"))
+	if err != nil {
+		fmt.Println(err.Error())
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
 	}
-
+	fmt.Fprintf(w, "Content: %s\n", content)
 }
 
-type greeting struct {
-	Content string
-}
-
-var tmpl = template.Must(template.New("index.html").Parse(`<!DOCTYPE html>
-<title>Guestbook - {{.Env}}</title>
-<style type="text/css">
-html, body {
-	font-family: Helvetica, sans-serif;
-}
-blockquote {
-	font-family: cursive, Helvetica, sans-serif;
-}
-.banner {
-	height: 125px;
-	width: 250px;
-}
-.greeting {
-	font-size: 85%;
-}
-.motd {
-	font-weight: bold;
-}
-</style>
-<h1>Guestbook</h1>
-<div><img class="banner" src="{{.BannerSrc}}"></div>
-{{with .MOTD}}<p class="motd">Admin says: {{.}}</p>{{end}}
-{{range .Greetings}}
-<div class="greeting">
-	Someone wrote:
-	<blockquote>{{.Content}}</blockquote>
-</div>
-{{end}}
-<form action="/sign" method="POST">
-	<div><textarea name="content" rows="3"></textarea></div>
-	<div><input type="submit" value="Sign"></div>
-</form>
-`))
-
-// sign is a form action handler for adding a greeting.
-func Sign(app *Application, c *Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			w.Header().Set("Allow", "POST")
-			http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		content := r.FormValue("content")
-		if content == "" {
-			http.Error(w, "content must not be empty", http.StatusBadRequest)
-			return
-		}
-		const sqlStmt = "INSERT INTO greetings (content) VALUES (?);"
-		_, err := app.Db.ExecContext(r.Context(), sqlStmt, content)
-		if err != nil {
-			log.Println("sign SQL error:", err)
-			http.Error(w, "database error", http.StatusInternalServerError)
-			return
-		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+func (app *Application) getUserInfo(state string, code string) ([]byte, error) {
+	if state != oauthStateString {
+		return nil, fmt.Errorf("invalid oauth state")
 	}
+	token, err := googleOauthConfig.Exchange(oauth2.NoContext, code)
+	if err != nil {
+		return nil, fmt.Errorf("code exchange failed: %s", err.Error())
+	}
+	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting user info: %s", err.Error())
+	}
+	defer response.Body.Close()
+	contents, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading response body: %s", err.Error())
+	}
+	return contents, nil
 }

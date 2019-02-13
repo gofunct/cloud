@@ -3,17 +3,13 @@
 package inject
 
 import (
+	"cloud.google.com/go/firestore"
 	"context"
-
 	"github.com/google/wire"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/gcsblob"
 	"gocloud.dev/gcp"
 	"gocloud.dev/gcp/gcpcloud"
-	"gocloud.dev/mysql/cloudmysql"
-	"gocloud.dev/runtimevar"
-	"gocloud.dev/runtimevar/runtimeconfigurator"
-	pb "google.golang.org/genproto/googleapis/cloud/runtimeconfig/v1beta1"
 )
 
 // setupGCP is a Wire injector function that sets up the Application using GCP.
@@ -22,11 +18,9 @@ func SetupGCP(ctx context.Context, flags *Config) (*Application, func(), error) 
 	// wire.Build.
 	wire.Build(
 		gcpcloud.GCP,
-		cloudmysql.Open,
 		ApplicationSet,
 		GcpBucket,
-		GcpRunVar,
-		GcpSQLParams,
+		NewFireStoreClient,
 	)
 	return nil, nil, nil
 }
@@ -35,28 +29,10 @@ func GcpBucket(ctx context.Context, flags *Config, client *gcp.HTTPClient) (*blo
 	return gcsblob.OpenBucket(ctx, client, flags.Bucket, nil)
 }
 
-func GcpSQLParams(id gcp.ProjectID, flags *Config) *cloudmysql.Params {
-	return &cloudmysql.Params{
-		ProjectID: string(id),
-		Region:    flags.SQLRegion,
-		Instance:  flags.DbHost,
-		Database:  flags.DbName,
-		User:      flags.DbUser,
-		Password:  flags.DbPass,
-	}
-}
-
-func GcpRunVar(ctx context.Context, client pb.RuntimeConfigManagerClient, project gcp.ProjectID, flags *Config) (*runtimevar.Variable, func(), error) {
-	name := runtimeconfigurator.ResourceName{
-		ProjectID: string(project),
-		Config:    flags.RunVarName,
-		Variable:  flags.RunVar,
-	}
-	v, err := runtimeconfigurator.NewVariable(client, name, runtimevar.StringDecoder, &runtimeconfigurator.Options{
-		WaitDuration: flags.RunVarWait,
-	})
+func NewFireStoreClient(ctx context.Context, c *Config) (*firestore.Client, error) {
+	client, err := firestore.NewClient(ctx, c.Project)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return v, func() { v.Close() }, nil
+	return client, nil
 }

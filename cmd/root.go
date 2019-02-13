@@ -21,12 +21,10 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"os"
-	"time"
 )
 
 var (
 	cfgFile string
-	config  = &inject.Config{}
 	port    string
 )
 
@@ -58,17 +56,13 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	{
-		rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $PWD/cloudctl.yaml)")
+		rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "goexec.yaml", "config file (default is $PWD/cloudctl.yaml)")
 		rootCmd.PersistentFlags().StringVar(&port, "port", ":8080", "port to run app on")
-		rootCmd.PersistentFlags().StringVar(&config.SQLRegion, "sqlregion", "", "cloud sql region")
-		rootCmd.PersistentFlags().StringVar(&config.DbName, "dbname", "defdb", "database name")
-		rootCmd.PersistentFlags().StringVar(&config.DbHost, "dbhost", "", "database host")
-		rootCmd.PersistentFlags().StringVar(&config.DbUser, "dbuser", "defuser", "database user name")
-		rootCmd.PersistentFlags().StringVar(&config.DbPass, "dbpass", "defpass", "database password")
-		rootCmd.PersistentFlags().StringVar(&config.Bucket, "bucket", "defbucket", "blob storage bucket")
-		rootCmd.PersistentFlags().DurationVar(&config.RunVarWait, "runvarwait", 30*time.Second, "timeout for runtime config watcher")
-		rootCmd.PersistentFlags().StringVar(&config.RunVar, "runvar", "hello world", "runtime variable value")
-		rootCmd.PersistentFlags().StringVar(&config.RunVarName, "runvarname", "motd", "runtime variable name")
+		rootCmd.PersistentFlags().StringVar(&inject.Configuration.ClientSecret, "clientsecret", "", "Oauth client secret")
+		rootCmd.PersistentFlags().StringVar(&inject.Configuration.ClientId, "dbname", "clientid", "Oauth client id")
+		rootCmd.PersistentFlags().StringVar(&inject.Configuration.Redirect, "redirect", "", "Oauth redirect url")
+		rootCmd.PersistentFlags().StringVar(&inject.Configuration.Project, "project", "", "gcloud project id")
+		rootCmd.PersistentFlags().StringVar(&inject.Configuration.Bucket, "bucket", "", "gcloud bucket to use for storage")
 	}
 	if err := viper.BindPFlags(rootCmd.Flags()); err != nil {
 		log.Println(err.Error())
@@ -85,7 +79,7 @@ func init() {
 			log.Println(err.Error())
 		}
 	}
-	if err := viper.Unmarshal(config); err != nil {
+	if err := viper.Unmarshal(inject.Configuration); err != nil {
 		log.Println("Failed to unmarshal config")
 	}
 }

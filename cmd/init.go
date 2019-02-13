@@ -18,13 +18,12 @@ import (
 	"context"
 	"github.com/gofunct/cloud/inject"
 	"github.com/gorilla/mux"
-	"log"
-	"net/http"
-	"net/http/pprof"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"log"
+	"net/http"
+	"net/http/pprof"
 )
 
 // initCmd represents the init command
@@ -36,7 +35,7 @@ var initCmd = &cobra.Command{
 		var app *inject.Application
 		var cleanup func()
 		var err error
-		app, cleanup, err = inject.SetupGCP(ctx, config)
+		app, cleanup, err = inject.SetupGCP(ctx, inject.Configuration)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -44,9 +43,10 @@ var initCmd = &cobra.Command{
 
 		// Set up URL routes.
 		r := mux.NewRouter()
-		r.HandleFunc("/", inject.Index(app, config))
-		r.HandleFunc("/sign", inject.Sign(app, config))
-		r.HandleFunc("/blob/{key:.+}", inject.ServeBlob(app, config))
+		r.HandleFunc("/login", app.Login)
+		r.HandleFunc("/callback", app.CallBack)
+		r.HandleFunc("/", app.Index)
+		r.HandleFunc("/blob/{key:.+}", inject.ServeBlob(app, inject.Configuration))
 		r.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 		r.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 		r.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
@@ -62,3 +62,5 @@ var initCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(initCmd)
 }
+
+
