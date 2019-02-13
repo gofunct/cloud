@@ -34,6 +34,12 @@ func main() {
 		cmd.AddScript(`go install {{ .gopath }}/src/{{ .rebuild }}`)
 		return cmd.Run()
 	})
+	exe.Act("token", "rebuild this cloudscript tool", func(cmd *goexec.Command) error {
+		cmd.AddScript(`gcloud auth application-default print-access-token
+`)
+		return cmd.Run()
+	})
+
 	if err := exe.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
